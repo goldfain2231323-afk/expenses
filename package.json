@@ -1,19 +1,13 @@
 {
-  "name": "vercel-expenses-api",
-  "version": "1.0.0",
-  "description": "A simple serverless API for managing expenses deployed on Vercel.",
-  "main": "api/expenses.js",
-  "type": "module",
-  "scripts": {
-    "start": "vercel dev",
-    "deploy": "vercel"
-  },
-  "keywords": [
-    "vercel",
-    "serverless",
-    "api",
-    "node"
-  ],
-  "author": "",
-  "license": "ISC"
+"name": "vercel-expense-tracker-api",
+"version": "1.0.0",
+"description": "Serverless API endpoint for an expense tracker on Vercel.",
+"main": "api/expenses.js",
+"scripts": {
+"start": "vercel dev"
+},
+"dependencies": {
+"body-parser": "^1.20.2",
+"express": "^4.19.2"
+}
 }
