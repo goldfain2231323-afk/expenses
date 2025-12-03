@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Expense Tracker</title>
     <style>
+        /* General Reset for better consistency */
+        *, *::before, *::after {
+            box-sizing: border-box; /* Crucial for consistent sizing */
+        }
+        
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
@@ -22,16 +27,27 @@
             color: #333;
             text-align: center;
         }
+        
+        /* Compatibility Fix: Add margin fallback for 'gap' in Flexbox */
         form {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 10px; /* Modern browsers */
             margin-bottom: 20px;
             padding: 15px;
             border: 1px solid #ddd;
             border-radius: 4px;
         }
+        /* Fallback for Flex 'gap' - applies margin to all children except the last */
+        form > * {
+            margin-bottom: 10px;
+        }
+        form > *:last-child {
+            margin-bottom: 0;
+        }
+
         input[type="text"], input[type="number"] {
+            width: 100%; /* Ensure full width on all browsers */
             padding: 10px;
             border: 1px solid #ccc;
             border-radius: 4px;
@@ -77,8 +93,12 @@
         
         <h2>Add New Expense</h2>
         <form id="expense-form">
+            <label for="description" style="position:absolute; left:-9999px;">Description</label>
             <input type="text" id="description" placeholder="Description (e.g., Groceries)" required>
+            
+            <label for="amount" style="position:absolute; left:-9999px;">Amount</label>
             <input type="number" id="amount" placeholder="Amount (e.g., 45.50)" step="0.01" required>
+            
             <button type="submit">Add Expense</button>
         </form>
 
@@ -89,79 +109,93 @@
     </div>
 
     <script>
-        const API_ENDPOINT = '/api/expenses'; // Matches your Vercel route
-        const form = document.getElementById('expense-form');
-        const expenseList = document.getElementById('expense-list');
-        const messageElement = document.getElementById('message');
+        // Use 'var' for widest compatibility, though 'const' is fine in modern environments
+        var API_ENDPOINT = '/api/expenses'; 
+        var form = document.getElementById('expense-form');
+        var expenseList = document.getElementById('expense-list');
+        var messageElement = document.getElementById('message');
 
         // Function to create and add a new expense item to the list
         function addExpenseToDOM(expense) {
-            const listItem = document.createElement('li');
-            listItem.innerHTML = `
-                <span>${expense.description}</span>
-                <strong>$${parseFloat(expense.amount).toFixed(2)}</strong>
-            `;
-            // Add the new item to the top of the list
-            expenseList.prepend(listItem); 
+            var listItem = document.createElement('li');
+            // Template literals are generally fine, but could be replaced with string concatenation for older ES5
+            listItem.innerHTML = '<span>' + expense.description + '</span>' +
+                                 '<strong>$' + parseFloat(expense.amount).toFixed(2) + '</strong>';
+            
+            // Compatibility Fix: Replace modern 'prepend' with classic 'insertBefore'
+            expenseList.insertBefore(listItem, expenseList.firstChild);
         }
 
         // Handle form submission
-        form.addEventListener('submit', async function(event) {
+        form.addEventListener('submit', function(event) {
             event.preventDefault(); // Prevent default form submission and page reload
 
             // Get form values
-            const descriptionInput = document.getElementById('description');
-            const amountInput = document.getElementById('amount');
+            var descriptionInput = document.getElementById('description');
+            var amountInput = document.getElementById('amount');
 
-            const newExpense = {
+            var newExpense = {
                 description: descriptionInput.value,
+                // Ensure number conversion is safe
                 amount: parseFloat(amountInput.value)
             };
+            
+            // Basic input validation check
+            if (isNaN(newExpense.amount) || newExpense.description.trim() === '') {
+                messageElement.textContent = '❌ Please enter a valid description and amount.';
+                messageElement.className = 'error';
+                return;
+            }
+
 
             messageElement.textContent = 'Sending...';
             messageElement.className = ''; // Clear any previous error/success class
 
-            try {
-                // Send POST request using fetch()
-                const response = await fetch(API_ENDPOINT, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    // Convert the JavaScript object to a JSON string
-                    body: JSON.stringify(newExpense)
-                });
-
-                // Check if the request was successful (status code 200-299)
+            // Use the classic Promise chain structure for maximum compatibility 
+            // (though async/await is generally supported)
+            fetch(API_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(newExpense)
+            })
+            .then(function(response) {
+                // Check if the request was successful
                 if (response.ok) {
-                    const data = await response.json();
-                    
-                    // Assuming your API returns the newly created expense object
-                    addExpenseToDOM(data.expense || newExpense); 
-                    
-                    messageElement.textContent = '✅ Expense added successfully!';
-                    messageElement.className = '';
-                    
-                    // Clear the form inputs
-                    descriptionInput.value = '';
-                    amountInput.value = '';
+                    // Return the JSON promise to the next .then()
+                    return response.json(); 
                 } else {
-                    // Handle HTTP error statuses
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || `HTTP error! Status: ${response.status}`);
+                    // Compatibility: Handle error responses that might not return valid JSON
+                    return response.text().then(function(text) {
+                        var errorData = { message: text };
+                        try {
+                            errorData = JSON.parse(text);
+                        } catch(e) { /* Assume text is not JSON */ }
+                        
+                        // Throw error to jump to the .catch() block
+                        throw new Error(errorData.message || 'HTTP error! Status: ' + response.status);
+                    });
                 }
-            } catch (error) {
-                // Handle network errors or errors thrown above
+            })
+            .then(function(data) {
+                // Success block
+                addExpenseToDOM(data.expense || newExpense); 
+                
+                messageElement.textContent = '✅ Expense added successfully!';
+                messageElement.className = '';
+                
+                // Clear the form inputs
+                descriptionInput.value = '';
+                amountInput.value = '';
+            })
+            .catch(function(error) {
+                // Error block (handles fetch errors and thrown HTTP errors)
                 console.error('Error adding expense:', error);
-                messageElement.textContent = `❌ Error: ${error.message}`;
+                messageElement.textContent = '❌ Error: ' + error.message;
                 messageElement.className = 'error';
-            }
+            });
         });
-        
-        // Initial list loading (Optional but good practice)
-        // You could add a function here to fetch existing expenses on page load.
-        // For simplicity and focus on the POST requirement, this is omitted.
-        // Example: loadExpenses(); 
 
     </script>
 </body>
