@@ -104,55 +104,96 @@
 
         <h2>Recent Expenses</h2>
         <ul id="expense-list">
-            </ul>
+            <li id="loading-message">Loading expenses...</li>
+        </ul>
         <p id="message"></p>
     </div>
 
     <script>
-        // Use 'var' for widest compatibility, though 'const' is fine in modern environments
         var API_ENDPOINT = '/api/expenses'; 
         var form = document.getElementById('expense-form');
         var expenseList = document.getElementById('expense-list');
         var messageElement = document.getElementById('message');
+        var loadingMessage = document.getElementById('loading-message');
+
 
         // Function to create and add a new expense item to the list
         function addExpenseToDOM(expense) {
             var listItem = document.createElement('li');
-            // Template literals are generally fine, but could be replaced with string concatenation for older ES5
-            listItem.innerHTML = '<span>' + expense.description + '</span>' +
-                                 '<strong>$' + parseFloat(expense.amount).toFixed(2) + '</strong>';
+            // Use Intl.NumberFormat for better currency formatting
+            var formattedAmount = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(parseFloat(expense.amount));
             
-            // Compatibility Fix: Replace modern 'prepend' with classic 'insertBefore'
+            listItem.innerHTML = '<span>' + expense.description + 
+                                 ' (' + (expense.category || 'N/A') + ')' + '</span>' +
+                                 '<strong>' + formattedAmount + '</strong>';
+            
             expenseList.insertBefore(listItem, expenseList.firstChild);
         }
+        
+        /**
+         * FIX: Function to fetch existing expenses on page load.
+         */
+        function loadExpenses() {
+            fetch(API_ENDPOINT, { method: 'GET' })
+            .then(function(response) {
+                if (response.ok) {
+                    return response.json();
+                }
+                throw new Error('Failed to fetch initial expenses: ' + response.status);
+            })
+            .then(function(data) {
+                // Remove loading message
+                if (loadingMessage) {
+                    loadingMessage.remove();
+                }
+                
+                if (data.data && data.data.length > 0) {
+                    // Iterate and add them to the DOM (they are already sorted by the API fix)
+                    data.data.forEach(function(expense) {
+                        var listItem = document.createElement('li');
+                        var formattedAmount = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(parseFloat(expense.amount));
+                        
+                        listItem.innerHTML = '<span>' + expense.description + 
+                                             ' (' + (expense.category || 'N/A') + ')' + '</span>' +
+                                             '<strong>' + formattedAmount + '</strong>';
+                        
+                        // Use appendChild here since we want them to appear in the order received
+                        expenseList.appendChild(listItem); 
+                    });
+                } else {
+                    expenseList.innerHTML = '<li>No expenses recorded yet.</li>';
+                }
+            })
+            .catch(function(error) {
+                console.error('Initial load error:', error);
+                if (loadingMessage) {
+                    loadingMessage.textContent = 'Error loading expenses.';
+                }
+            });
+        }
+
 
         // Handle form submission
         form.addEventListener('submit', function(event) {
-            event.preventDefault(); // Prevent default form submission and page reload
+            event.preventDefault(); 
 
-            // Get form values
             var descriptionInput = document.getElementById('description');
             var amountInput = document.getElementById('amount');
 
             var newExpense = {
                 description: descriptionInput.value,
-                // Ensure number conversion is safe
                 amount: parseFloat(amountInput.value)
             };
             
-            // Basic input validation check
-            if (isNaN(newExpense.amount) || newExpense.description.trim() === '') {
-                messageElement.textContent = '❌ Please enter a valid description and amount.';
+            if (isNaN(newExpense.amount) || newExpense.amount <= 0 || newExpense.description.trim() === '') {
+                messageElement.textContent = '❌ Please enter a valid description and a positive amount.';
                 messageElement.className = 'error';
                 return;
             }
 
-
             messageElement.textContent = 'Sending...';
-            messageElement.className = ''; // Clear any previous error/success class
+            messageElement.className = ''; 
 
-            // Use the classic Promise chain structure for maximum compatibility 
-            // (though async/await is generally supported)
             fetch(API_ENDPOINT, {
                 method: 'POST',
                 headers: {
@@ -161,42 +202,43 @@
                 body: JSON.stringify(newExpense)
             })
             .then(function(response) {
-                // Check if the request was successful
                 if (response.ok) {
-                    // Return the JSON promise to the next .then()
                     return response.json(); 
                 } else {
-                    // Compatibility: Handle error responses that might not return valid JSON
                     return response.text().then(function(text) {
                         var errorData = { message: text };
                         try {
                             errorData = JSON.parse(text);
                         } catch(e) { /* Assume text is not JSON */ }
                         
-                        // Throw error to jump to the .catch() block
-                        throw new Error(errorData.message || 'HTTP error! Status: ' + response.status);
+                        throw new Error(errorData.error || errorData.message || 'HTTP error! Status: ' + response.status);
                     });
                 }
             })
             .then(function(data) {
-                // Success block
-                addExpenseToDOM(data.expense || newExpense); 
+                // Remove the "No expenses recorded yet." message if it exists
+                if (expenseList.querySelector('li').textContent === 'No expenses recorded yet.') {
+                    expenseList.innerHTML = '';
+                }
+
+                // Add the newly created expense object to the DOM
+                addExpenseToDOM(data.expense || newExpense); 
                 
                 messageElement.textContent = '✅ Expense added successfully!';
                 messageElement.className = '';
                 
-                // Clear the form inputs
                 descriptionInput.value = '';
                 amountInput.value = '';
             })
             .catch(function(error) {
-                // Error block (handles fetch errors and thrown HTTP errors)
                 console.error('Error adding expense:', error);
                 messageElement.textContent = '❌ Error: ' + error.message;
                 messageElement.className = 'error';
             });
         });
 
+        // FIX: Call the load function on page initialization
+        document.addEventListener('DOMContentLoaded', loadExpenses);
     </script>
 </body>
 </html>
