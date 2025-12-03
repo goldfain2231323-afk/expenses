@@ -1,4 +1,8 @@
 {
+  "src": "/",
+  "dest": "/index.html"
+}
+{
   "version": 2,
   "builds": [
     {
@@ -10,10 +14,6 @@
     {
       "src": "/api/expenses",
       "dest": "api/expenses.js"
-    },
-    {
-      "src": "/",
-      "dest": "/index.html"
     }
   ]
 }
